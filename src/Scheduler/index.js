@@ -1,11 +1,11 @@
-'use strict'
+"use strict";
 
-const fs = require('fs')
-const path = require('path')
-const debug = require('debug')('adonis:scheduler')
-const { ioc } = require('@adonisjs/fold')
-const CE = require('../Exceptions')
-const Task = require('./Task')
+const fs = require("fs");
+const path = require("path");
+const debug = require("debug")("adonis:scheduler");
+const { ioc } = require("@adonisjs/fold");
+const CE = require("../Exceptions");
+const Task = require("./Task");
 
 /**
  * @module Scheduler
@@ -15,19 +15,19 @@ class Scheduler {
   /**
    * @return {Array}
    */
-  static get inject () {
-    return ['Adonis/Src/Helpers']
+  static get inject() {
+    return ["Adonis/Src/Helpers"];
   }
 
   /**
    * @param {Object} Helpers
    */
-  constructor (Helpers) {
-    this.Helpers = Helpers
-    this.instance = require('node-schedule')
-    this.registeredTasks = []
+  constructor(Helpers) {
+    this.Helpers = Helpers;
+    this.instance = require("node-schedule");
+    this.registeredTasks = [];
 
-    this._configureTasksPath()
+    this._configureTasksPath();
   }
 
   /**
@@ -36,9 +36,9 @@ class Scheduler {
    *
    * @private
    */
-  _configureTasksPath () {
-    this.tasksPath = path.join(this.Helpers.appRoot(), 'app', 'Tasks')
-    this.tasksPath = path.normalize(this.tasksPath)
+  _configureTasksPath() {
+    this.tasksPath = path.join(this.Helpers.appRoot(), "app", "Tasks");
+    this.tasksPath = path.normalize(this.tasksPath);
   }
 
   /**
@@ -47,48 +47,57 @@ class Scheduler {
    * @param {String} file
    * @private
    */
-  async _fetchTask (file) {
-    const filePath = path.join(this.tasksPath, file)
-    let task
+  async _fetchTask(file) {
+    const filePath = path.join(this.tasksPath, file);
+    let task;
     try {
-      task = require(filePath)
+      task = require(filePath);
     } catch (e) {
       if (e instanceof ReferenceError) {
-        debug('Unable to import task class <%s>. Is it a valid javascript class?', file)
-        return
+        debug(
+          "Unable to import task class <%s>. Is it a valid javascript class?",
+          file
+        );
+        return;
       } else {
-        throw e
+        throw e;
       }
     }
 
     // Get instance of task class
-    const taskInstance = ioc.make(task)
+    const taskInstance = ioc.make(task);
 
     // Every task must expose a schedule
-    if (!('schedule' in task)) {
-      throw CE.RuntimeException.undefinedTaskSchedule(file)
+    if (!("schedule" in task)) {
+      throw CE.RuntimeException.undefinedTaskSchedule(file);
     }
 
     // Every task must expose a handle function
-    if (!('handle' in taskInstance)) {
-      throw CE.RuntimeException.undefinedTaskHandle(file)
+    if (!("handle" in taskInstance)) {
+      throw CE.RuntimeException.undefinedTaskHandle(file);
     }
 
     if (!(taskInstance instanceof Task)) {
-      throw CE.RuntimeException.undefinedInstanceTask(file)
+      throw CE.RuntimeException.undefinedInstanceTask(file);
     }
 
-    // Track currently registered tasks in memory
-    this.registeredTasks.push(taskInstance)
+    // Proceed if the task is not disabled
+    if (taskInstance.enabled) {
+      // Track currently registered tasks in memory
+      this.registeredTasks.push(taskInstance);
 
-    // Before add task to schedule need check & unlock file if exist
-    const locked = await taskInstance.locker.check()
-    if (locked) {
-      await taskInstance.locker.unlock()
+      // Before add task to schedule need check & unlock file if exist
+      const locked = await taskInstance.locker.check();
+      if (locked) {
+        await taskInstance.locker.unlock();
+      }
+
+      // Register task handler
+      this.instance.scheduleJob(
+        task.schedule,
+        taskInstance._run.bind(taskInstance)
+      );
     }
-
-    // Register task handler
-    this.instance.scheduleJob(task.schedule, taskInstance._run.bind(taskInstance))
   }
 
   /**
@@ -96,29 +105,29 @@ class Scheduler {
    *
    * @public
    */
-  async run () {
-    debug('Scan tasks path %s', this.tasksPath)
-    let taskFiles
+  async run() {
+    debug("Scan tasks path %s", this.tasksPath);
+    let taskFiles;
 
     try {
-      taskFiles = fs.readdirSync(this.tasksPath)
+      taskFiles = fs.readdirSync(this.tasksPath);
     } catch (e) {
       // If the directory isn't found, log a message and exit gracefully
-      if (e.code === 'ENOENT') {
-        throw CE.RuntimeException.notFoundTask(this.tasksPath)
+      if (e.code === "ENOENT") {
+        throw CE.RuntimeException.notFoundTask(this.tasksPath);
       }
 
-      throw e
+      throw e;
     }
 
-    taskFiles = taskFiles.filter(file => path.extname(file) === '.js')
+    taskFiles = taskFiles.filter((file) => path.extname(file) === ".js");
 
     for (let taskFile of taskFiles) {
-      await this._fetchTask(taskFile)
+      await this._fetchTask(taskFile);
     }
 
-    debug('scheduler running %d tasks', this.registeredTasks.length)
+    debug("scheduler running %d tasks", this.registeredTasks.length);
   }
 }
 
-module.exports = Scheduler
+module.exports = Scheduler;
