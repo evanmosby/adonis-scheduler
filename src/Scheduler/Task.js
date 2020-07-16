@@ -21,7 +21,7 @@ class Task {
    *
    * @return {Boolean}
    */
-  static get enabled() {
+  get enabled() {
     return true;
   }
 
