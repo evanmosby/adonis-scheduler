@@ -138,6 +138,12 @@ class Task {
   }
 
   /**
+   * Implemented in child
+   * Optional method to run anything prior to loading the Task initially
+   */
+  async register() {}
+
+  /**
    * Get task running time duration
    *
    * @param {Boolean} [source]    Set true for return milliseconds value number

@@ -83,6 +83,9 @@ class Scheduler {
 
     // Proceed if the task is not disabled
     if (taskInstance.enabled) {
+      // Runs optional register method
+      await taskInstance.register();
+
       // Track currently registered tasks in memory
       this.registeredTasks.push(taskInstance);
 
